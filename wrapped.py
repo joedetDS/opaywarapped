@@ -2,8 +2,6 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-import requests
-import os
 from typing import Tuple, Optional, Dict
 
 
@@ -276,63 +274,7 @@ def render_charts(df: pd.DataFrame):
         st.markdown("<h3 style='text-align:center'>Top Credit Sources</h3>", unsafe_allow_html=True)
         st.table(top_credit_sources)
 
-    return top_desc, spike_days, weekday_spend
 
-
-# AI SUMMARY
-
-def generate_ai_summary(kpis, top_desc, spike_days, weekday_spend):
-    # build simple prompt with aggregated values
-    prompt = f"""
-You are a friendly financial assistant for a microfinance bank.
-
-Spending summary:
-- Total spending: ₦{kpis['total_spend']:,.2f}
-- Total income: ₦{kpis['total_income']:,.2f}
-- Net cashflow: ₦{kpis['net_cashflow']:,.2f}
-- Average daily spend: ₦{kpis['avg_daily_spend']:,.2f}
-- Lowest balance: {kpis['lowest_balance']}
-- Most used channel: {kpis['top_channel']}
-
-Behavioral insights:
-- Highest spending days: {spike_days.to_dict()}
-- Top transfer descriptions: {top_desc.to_dict()}
-- Highest spending weekday: {weekday_spend.idxmax()}
-
-Write:
-I. A friendly yearly spending summary
-II. Key observations
-III. Five actionable financial recommendations for the new year
-"""
-    # call OpenRouter HTTP API
-    # Prefer environment variables for hosted environments (e.g. GitHub Actions, cloud hosts).
-    # Fall back to Streamlit secrets for local development.
-    api_key = os.environ.get("OPENROUTER_API_KEY") or st.secrets.get("OPENROUTER_API_KEY")
-    if not api_key:
-        raise ValueError("OPENROUTER_API_KEY not set. Set the OPENROUTER_API_KEY env var or add it to .streamlit/secrets.toml for local dev")
-
-    url = "https://api.openrouter.ai/v1/chat/completions"
-    model = os.environ.get("OPENROUTER_MODEL") or st.secrets.get("OPENROUTER_MODEL", "allenai/olmo-3.1-32b-think:free")
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-        # "max_tokens": 800
-    }
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-
-    resp = requests.post(url, headers=headers, json=payload, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-
-    # Normalize common response shapes
-    choice = data.get("choices", [{}])[0]
-    content = (
-        (choice.get("message") or {}).get("content")
-        or choice.get("text")
-        or str(data)
-    )
-    return content
 
 
 # MAIN
@@ -377,19 +319,7 @@ def main():
 
     st.divider()
     # charts
-    top_desc, spike_days, weekday_spend = render_charts(df)
-
-    st.divider()
-    st.subheader("AI Financial Wrap-Up & Recommendations")
-    if st.button("Generate AI Summary"):
-        try:
-            ai_text = generate_ai_summary(kpis, top_desc, spike_days, weekday_spend)
-            st.success("AI analysis generated successfully")
-            st.write(ai_text)
-        except Exception as e:
-            st.error(f"AI request failed: {e}")
-
-    st.caption(" AI insights are advisory and may be wrong.")
+    render_charts(df)
 
 if __name__ == "__main__":
     main()
